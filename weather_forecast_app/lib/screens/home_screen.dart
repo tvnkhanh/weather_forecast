@@ -1,16 +1,10 @@
-import 'dart:convert';
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:weather_forecast_app/constants/constants.dart';
 import 'package:weather_forecast_app/screens/detail_screen.dart';
-import 'package:weather_forecast_app/utils/show_snack_bar.dart';
+import 'package:weather_forecast_app/services/weather_services.dart';
 import 'package:weather_forecast_app/widgets/weather_item.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,7 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final Constants _constants = Constants();
-  static String API_KEY = dotenv.get('API_KEY');
+  final WeatherServices _weatherServices = WeatherServices();
 
   final TextEditingController _cityController = TextEditingController();
 
@@ -39,47 +33,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String currentWeatherStatus = "";
 
-  String searchWeatherApi =
-      "https://api.weatherapi.com/v1/forecast.json?key=$API_KEY&days=7&aqi=no&alerts=no&q=";
+  void fetchWeatherDebounced(String city) {
+    _weatherServices.debounce(fetchWeatherData, city);
+  }
 
   void fetchWeatherData(String searchText) async {
-    try {
-      var searchResult = await http.get(
-        Uri.parse(searchWeatherApi + searchText),
-      );
+    var weatherData = await _weatherServices.fetchWeatherData(searchText);
 
-      if (searchResult.statusCode == 200) {
-        final weatherData = json.decode(searchResult.body);
+    var locationData = weatherData['location'];
+    var currentWeather = weatherData['current'];
 
-        var locationData = weatherData['location'];
-        var currentWeather = weatherData['current'];
+    setState(() {
+      location = locationData['name'] ?? "Unknown Location";
 
-        setState(() {
-          location = locationData['name'] ?? "Unknown Location";
+      var parsedDate =
+          DateTime.parse(locationData['localtime'].substring(0, 10));
+      currentDate = DateFormat("MMMMEEEEd").format(parsedDate);
 
-          var parsedDate =
-              DateTime.parse(locationData['localtime'].substring(0, 10));
-          currentDate = DateFormat("MMMMEEEEd").format(parsedDate);
+      currentWeatherStatus = currentWeather['condition']['text'] ?? "Unknown";
+      weatherIcon =
+          "${currentWeatherStatus.replaceAll(' ', '').toLowerCase()}.png";
+      temperature = currentWeather['temp_c']?.toInt() ?? 0;
+      windSpeed = currentWeather['wind_kph']?.toInt() ?? 0;
+      humidity = currentWeather['humidity']?.toInt() ?? 0;
+      cloud = currentWeather['cloud']?.toInt() ?? 0;
 
-          currentWeatherStatus =
-              currentWeather['condition']['text'] ?? "Unknown";
-          weatherIcon =
-              "${currentWeatherStatus.replaceAll(' ', '').toLowerCase()}.png";
-          temperature = currentWeather['temp_c']?.toInt() ?? 0;
-          windSpeed = currentWeather['wind_kph']?.toInt() ?? 0;
-          humidity = currentWeather['humidity']?.toInt() ?? 0;
-          cloud = currentWeather['cloud']?.toInt() ?? 0;
-
-          dailyWeatherForecast = weatherData['forecast']['forecastday'] ?? [];
-          hourlyWeatherForecast = dailyWeatherForecast.isNotEmpty
-              ? dailyWeatherForecast[0]['hour'] ?? []
-              : [];
-          print(dailyWeatherForecast);
-        });
-      }
-    } catch (e) {
-      showSnackBar(context, e.toString());
-    }
+      dailyWeatherForecast = weatherData['forecast']['forecastday'] ?? [];
+      hourlyWeatherForecast = dailyWeatherForecast.isNotEmpty
+          ? dailyWeatherForecast[0]['hour'] ?? []
+          : [];
+      print(dailyWeatherForecast);
+    });
   }
 
   @override
@@ -203,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   ),
                                                   TextField(
                                                     onChanged: (searchText) {
-                                                      fetchWeatherData(
+                                                      fetchWeatherDebounced(
                                                           searchText);
                                                     },
                                                     controller: _cityController,

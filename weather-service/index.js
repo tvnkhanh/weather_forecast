@@ -1,12 +1,15 @@
 require('dotenv').config();
 const express = require("express");
 const mongoose = require("mongoose");
+const cors = require('cors');
 
 const weatherRouter = require("./routes/weather");
 
 const app = express();
 const PORT = 5000;
 const DB = process.env.MONGODB_CONNECTION_STRING;
+
+app.use(cors());
 
 // middleware
 app.use(express.json());
