@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
+import 'package:provider/provider.dart';
 import 'package:weather_forecast_app/constants/constants.dart';
+import 'package:weather_forecast_app/provider/user_provider.dart';
 import 'package:weather_forecast_app/screens/detail_screen.dart';
+import 'package:weather_forecast_app/screens/login_screen.dart';
+import 'package:weather_forecast_app/services/user_services.dart';
 import 'package:weather_forecast_app/services/weather_services.dart';
+import 'package:weather_forecast_app/services/location_services.dart';
 import 'package:weather_forecast_app/widgets/weather_item.dart';
+import 'package:weather_forecast_app/models/location.dart'; // Import the Location model
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final Constants _constants = Constants();
   final WeatherServices _weatherServices = WeatherServices();
+  final LocationServices _locationServices = LocationServices(); // Add this
 
   final TextEditingController _cityController = TextEditingController();
 
@@ -32,6 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List dailyWeatherForecast = [];
 
   String currentWeatherStatus = "";
+  bool isLocationSaved = false;
+  List<String> savedLocations = [];
 
   void fetchWeatherDebounced(String city) {
     _weatherServices.debounce(fetchWeatherData, city);
@@ -64,12 +73,57 @@ class _HomeScreenState extends State<HomeScreen> {
           : [];
       print(dailyWeatherForecast);
     });
+
+    checkIfLocationIsSaved();
   }
 
   @override
   void initState() {
     fetchWeatherData(location);
+    UserServices().getUserData(context);
     super.initState();
+  }
+
+  void checkIfLocationIsSaved() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    if (userProvider.isAuthenticated) {
+      List<Location> userLocations = await _locationServices.getAllLocations(
+          userProvider.user.id, context);
+      setState(() {
+        isLocationSaved =
+            userLocations.any((loc) => loc.cities.contains(location));
+        savedLocations = userLocations.map((loc) => loc.cities).first;
+      });
+    }
+  }
+
+  void toggleLocation() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    if (userProvider.isAuthenticated) {
+      if (isLocationSaved) {
+        _locationServices.createLocation(
+            context, userProvider.user.id, location, isLocationSaved);
+      } else {
+        _locationServices.createLocation(
+            context, userProvider.user.id, location, isLocationSaved);
+      }
+      setState(() {
+        if (isLocationSaved) {
+          savedLocations.remove(location);
+        } else {
+          savedLocations.add(location);
+        }
+        isLocationSaved = !isLocationSaved;
+      });
+    }
+  }
+
+  void changeLocation(String newLocation) {
+    setState(() {
+      location = newLocation;
+    });
+    fetchWeatherData(newLocation);
+    Navigator.pop(context);
   }
 
   @override
@@ -80,6 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     Size size = MediaQuery.of(context).size;
+    final userProvider = Provider.of<UserProvider>(context);
+    final bool isAuthenticated = userProvider.isAuthenticated;
 
     return currentWeatherStatus == ""
         ? Center(
@@ -88,7 +144,29 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           )
         : Scaffold(
-            backgroundColor: Colors.white,
+            drawer: Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  DrawerHeader(
+                    decoration: BoxDecoration(
+                      color: _constants.primaryColor,
+                    ),
+                    child: Text(
+                      'Saved Locations',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                      ),
+                    ),
+                  ),
+                  ...savedLocations.map((loc) => ListTile(
+                        title: Text(loc),
+                        onTap: () => changeLocation(loc),
+                      )),
+                ],
+              ),
+            ),
             body: SingleChildScrollView(
               child: Container(
                 width: size.width,
@@ -127,10 +205,19 @@ class _HomeScreenState extends State<HomeScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Image.asset(
-                                'assets/menu.png',
-                                width: 40,
-                                height: 40,
+                              Builder(
+                                builder: (context) {
+                                  return IconButton(
+                                    icon: Image.asset(
+                                      'assets/menu.png',
+                                      width: 40,
+                                      height: 40,
+                                    ),
+                                    onPressed: () {
+                                      Scaffold.of(context).openDrawer();
+                                    },
+                                  );
+                                },
                               ),
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -237,14 +324,61 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ],
                               ),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.asset(
-                                  'assets/profile.png',
-                                  width: 40,
-                                  height: 40,
+                              if (isAuthenticated)
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      onPressed: toggleLocation,
+                                      icon: Icon(
+                                        isLocationSaved
+                                            ? Icons.favorite
+                                            : Icons.favorite_border,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                    PopupMenuButton<String>(
+                                      onSelected: (value) {
+                                        if (value == 'logout') {
+                                          UserServices().signOutUser(context);
+                                        }
+                                      },
+                                      itemBuilder: (BuildContext context) {
+                                        return const [
+                                          PopupMenuItem(
+                                            value: 'profile',
+                                            child: Text('Profile'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'logout',
+                                            child: Text('Logout'),
+                                          ),
+                                        ];
+                                      },
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Image.asset(
+                                          'assets/profile.png',
+                                          width: 40,
+                                          height: 40,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) => LoginScreen()),
+                                    );
+                                  },
+                                  child: const Text(
+                                    'Login',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                           SizedBox(

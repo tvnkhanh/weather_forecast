@@ -48,6 +48,24 @@ services:
       - DB_NAME=$MONGODB_DATABASE_2
       - DB_PORT=$MONGODB_DOCKER_PORT
 
+  location-service:
+    depends_on:
+      - mongodb
+    build: 
+      context: ./location-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: ./.env
+    ports:
+      - "5003:5000"
+    environment:
+      - NODE_PORT=5000
+      - DB_HOST=mongodb
+      - DB_USER=$MONGODB_USER
+      - DB_PASSWORD=$MONGODB_PASSWORD
+      - DB_NAME=$MONGODB_DATABASE_3
+      - DB_PORT=$MONGODB_DOCKER_PORT
+
   weather-forecast-web:
     depends_on:
       - user-service

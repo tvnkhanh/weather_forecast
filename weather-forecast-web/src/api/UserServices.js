@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// const USER_SERVICE_URL = process.env.USER_SERVICE_URL;
-const USER_SERVICE_URL = 'http://192.168.1.40:5000';
+const USER_SERVICE_URL = process.env.REACT_APP_USER_SERVICE_URL;
+// const USER_SERVICE_URL = 'http://192.168.1.40:5000';
 
 const UserServices = {
 

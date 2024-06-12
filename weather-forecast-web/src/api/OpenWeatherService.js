@@ -1,4 +1,4 @@
-const WEATHER_SERVICE_URL = process.env.WEATHER_SERVICE_URL;
+const WEATHER_SERVICE_URL = process.env.REACT_APP_WEATHER_SERVICE_URL;
 
 export async function fetchWeatherData(lat, lon) {
   try {

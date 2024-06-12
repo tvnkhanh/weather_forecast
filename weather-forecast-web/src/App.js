@@ -150,7 +150,7 @@ function App() {
     try {
       const data = await UserServices.signin(loginEmail, loginPassword);
       setToken(data.token);
-      setUser(data.user);
+      setUser(data);
       setIsLoggedIn(true);
       if (rememberMe) {
         localStorage.setItem("token", data.token);
@@ -170,7 +170,7 @@ function App() {
         registerPassword
       );
       setToken(data.token);
-      setUser(data.user);
+      setUser(data);
       setIsLoggedIn(true);
       handleRegisterClose();
     } catch (error) {
